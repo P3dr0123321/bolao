@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 42 40% 98%;
+    --foreground: 213 31% 18%;
+    --card: 0 0% 100%;
+    --card-foreground: 213 31% 18%;
+    --primary: 157 64% 28%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 42 78% 92%;
+    --secondary-foreground: 213 31% 18%;
+    --muted: 40 26% 92%;
+    --muted-foreground: 213 14% 42%;
+    --accent: 12 80% 92%;
+    --accent-foreground: 213 31% 18%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 40 20% 86%;
+    --input: 40 20% 86%;
+    --ring: 157 64% 28%;
+    --radius: 0.5rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+}
+
+@layer utilities {
+  .hero-pattern {
+    background:
+      radial-gradient(circle at 20% 20%, rgba(255, 212, 121, 0.26), transparent 28%),
+      radial-gradient(circle at 82% 10%, rgba(60, 167, 136, 0.20), transparent 24%),
+      linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(248, 244, 235, 0.86));
+  }
+}
