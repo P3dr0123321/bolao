@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import type { Match, Prediction } from "@/lib/types";
+import { formatBrasiliaDateTime, formatBrasiliaTime } from "@/lib/timezone";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -48,17 +49,11 @@ export function calculatePredictionPoints(
 }
 
 export function formatKickoff(startsAt: string) {
-  return new Intl.DateTimeFormat("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(startsAt));
+  return formatBrasiliaTime(startsAt);
 }
 
 export function formatDateTime(startsAt: string) {
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short"
-  }).format(new Date(startsAt));
+  return formatBrasiliaDateTime(startsAt);
 }
 
 export function todayRange() {

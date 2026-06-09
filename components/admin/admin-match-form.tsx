@@ -55,8 +55,11 @@ export function AdminMatchForm() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="starts_at">Início</Label>
+              <Label htmlFor="starts_at">Data e hora do jogo</Label>
               <Input id="starts_at" name="starts_at" type="datetime-local" required />
+              <p className="text-xs text-muted-foreground">
+                Informe o horário de Brasília.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="round">Fase</Label>

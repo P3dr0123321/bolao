@@ -5,6 +5,7 @@ import { useFormState } from "react-dom";
 import { Clock, Lock, Medal } from "lucide-react";
 import { savePrediction } from "@/app/actions/predictions";
 import { ActionMessage } from "@/components/action-message";
+import { MatchPredictionsDialog } from "@/components/match-predictions-dialog";
 import { SubmitButton } from "@/components/submit-button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -16,8 +17,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getTeamCrestUrl } from "@/lib/teams";
-import type { ActionState, Match, Prediction } from "@/lib/types";
-import { formatKickoff, isPredictionLocked } from "@/lib/utils";
+import type {
+  ActionState,
+  Match,
+  Prediction,
+  PredictionWithParticipant
+} from "@/lib/types";
+import { formatDateTime, isPredictionLocked } from "@/lib/utils";
 
 const initialState: ActionState = {
   ok: false,
@@ -32,10 +38,12 @@ function statusLabel(status: Match["status"]) {
 
 export function MatchPredictionCard({
   match,
-  prediction
+  prediction,
+  allPredictions
 }: {
   match: Match;
   prediction: Prediction | null;
+  allPredictions: PredictionWithParticipant[];
 }) {
   const [state, formAction] = useFormState(savePrediction, initialState);
   const locked = match.status === "finished" || isPredictionLocked(match.starts_at);
@@ -77,7 +85,7 @@ export function MatchPredictionCard({
             <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span className="inline-flex items-center gap-1">
                 <Clock className="h-4 w-4" />
-                {formatKickoff(match.starts_at)}
+                {formatDateTime(match.starts_at)}
               </span>
               {match.round ? <span>{match.round}</span> : null}
               {match.group_name ? <span>{match.group_name}</span> : null}
@@ -138,11 +146,15 @@ export function MatchPredictionCard({
               <Lock className="h-4 w-4" />
               Palpite bloqueado: o prazo terminou 1 hora antes do jogo.
             </p>
-          ) : (
-            <SubmitButton pendingText="Salvando palpite...">
-              {prediction ? "Atualizar palpite" : "Salvar palpite"}
-            </SubmitButton>
-          )}
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            {!locked ? (
+              <SubmitButton pendingText="Salvando palpite...">
+                {prediction ? "Atualizar palpite" : "Salvar palpite"}
+              </SubmitButton>
+            ) : null}
+            <MatchPredictionsDialog match={match} predictions={allPredictions} />
+          </div>
           <ActionMessage state={state} />
         </form>
       </CardContent>

@@ -66,5 +66,6 @@ export async function savePrediction(
   }
 
   revalidatePath("/jogos");
+  revalidatePath("/");
   return { ok: true, message: "Palpite salvo." };
 }

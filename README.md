@@ -53,6 +53,17 @@ After that, log in at `/login` using username `admin` and the password you creat
 - Exact scores receive an additional 15 points, for a maximum of 25 points per match.
 - Upload up to 3 family photos from `/admin`; confirm they appear in the home carousel.
 
+## Horário dos jogos
+
+- Informe datas e horas de jogos no admin usando o Horário de Brasília (`America/Sao_Paulo`).
+- O app converte esses valores para UTC antes de salvar no banco.
+- Datas de jogos são exibidas no Horário de Brasília, independentemente do fuso do navegador ou servidor.
+- O prazo dos palpites continua sendo calculado a partir do instante UTC salvo e termina 1 hora antes do jogo.
+
+Quando o administrador cadastra um jogo às `20:00`, o sistema interpreta esse
+horário como `20:00` em `America/Sao_Paulo`. O banco armazena o instante UTC
+equivalente, mas todos os usuários veem `20:00 BRT` no app.
+
 ## Deployment
 
 Deploy to Vercel and configure the same environment variables in the Vercel project settings. The service role key must only exist as a server-side environment variable and must never be exposed with a `NEXT_PUBLIC_` prefix.

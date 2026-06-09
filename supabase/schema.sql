@@ -143,10 +143,11 @@ using (public.is_admin())
 with check (public.is_admin());
 
 drop policy if exists "participants read own predictions" on public.predictions;
-create policy "participants read own predictions"
+drop policy if exists "authenticated users can read all predictions" on public.predictions;
+create policy "authenticated users can read all predictions"
 on public.predictions for select
 to authenticated
-using (participant_id = public.current_participant_id() or public.is_admin());
+using (true);
 
 drop policy if exists "participants insert own open predictions" on public.predictions;
 create policy "participants insert own open predictions"

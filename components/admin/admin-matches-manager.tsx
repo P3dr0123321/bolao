@@ -38,15 +38,10 @@ import {
 } from "@/components/ui/select";
 import type { ActionState, Match, MatchStatus } from "@/lib/types";
 import { getTeamCrestUrl } from "@/lib/teams";
+import { utcIsoToBrasiliaInputValue } from "@/lib/timezone";
 import { formatDateTime } from "@/lib/utils";
 
 const initialState: ActionState = { ok: false, message: "" };
-
-function toDateTimeLocal(value: string) {
-  const date = new Date(value);
-  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-  return localDate.toISOString().slice(0, 16);
-}
 
 function statusLabel(status: MatchStatus) {
   if (status === "finished") return "Finalizado";
@@ -129,14 +124,17 @@ function EditMatchDialog({ match }: { match: Match }) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor={`${match.id}-starts-at`}>Início</Label>
+              <Label htmlFor={`${match.id}-starts-at`}>Data e hora do jogo</Label>
               <Input
                 id={`${match.id}-starts-at`}
                 name="starts_at"
                 type="datetime-local"
-                defaultValue={toDateTimeLocal(match.starts_at)}
+                defaultValue={utcIsoToBrasiliaInputValue(match.starts_at)}
                 required
               />
+              <p className="text-xs text-muted-foreground">
+                Informe o horário de Brasília.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor={`${match.id}-status`}>Status</Label>

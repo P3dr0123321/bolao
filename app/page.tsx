@@ -1,19 +1,17 @@
 import { AdminPointsManager } from "@/components/admin/admin-points-manager";
 import { FamilyCarousel } from "@/components/family-carousel";
 import { Header } from "@/components/header";
-import { HomeDailyMatches } from "@/components/home-daily-matches";
+import { HomeScheduledMatches } from "@/components/home-scheduled-matches";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { requireParticipant } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import type { FamilyPhoto, Match, Participant } from "@/lib/types";
-import { todayRange } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const participant = await requireParticipant();
   const supabase = createClient();
-  const range = todayRange();
 
   const [participantsResult, photosResult, matchesResult] = await Promise.all([
     supabase
@@ -31,8 +29,7 @@ export default async function HomePage() {
       .select(
         "id, home_team, away_team, home_score, away_score, starts_at, status, round, group_name, created_at"
       )
-      .gte("starts_at", range.start)
-      .lt("starts_at", range.end)
+      .eq("status", "scheduled")
       .order("starts_at", { ascending: true })
   ]);
 
@@ -47,11 +44,11 @@ export default async function HomePage() {
         {matchesResult.error ? (
           <section className="container pt-10">
             <div className="rounded-lg border bg-card p-8 text-center text-destructive">
-              Não foi possível carregar os jogos de hoje.
+              Não foi possível carregar os jogos agendados.
             </div>
           </section>
         ) : (
-          <HomeDailyMatches matches={(matchesResult.data ?? []) as Match[]} />
+          <HomeScheduledMatches matches={(matchesResult.data ?? []) as Match[]} />
         )}
 
         {participant.role === "admin" && !participantsResult.error ? (

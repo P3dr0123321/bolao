@@ -6,6 +6,7 @@ import { requireAdmin } from "@/lib/auth";
 import { recalculateLeaderboard } from "@/lib/leaderboard";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isValidTeamName } from "@/lib/teams";
+import { brasiliaLocalInputToUtcIso } from "@/lib/timezone";
 import type {
   ActionState,
   Match,
@@ -78,6 +79,14 @@ function optionalScore(value: FormDataEntryValue | null) {
     valid: Number.isInteger(score) && score >= 0,
     value: score
   };
+}
+
+function parseBrasiliaStartsAt(value: string) {
+  try {
+    return brasiliaLocalInputToUtcIso(value);
+  } catch {
+    return null;
+  }
 }
 
 async function recalculateMatchPoints(
@@ -502,7 +511,7 @@ export async function createMatch(
   const homeTeam = String(formData.get("home_team") ?? "").trim();
   const awayTeam = String(formData.get("away_team") ?? "").trim();
   const startsAt = String(formData.get("starts_at") ?? "");
-  const startsAtDate = new Date(startsAt);
+  const startsAtIso = parseBrasiliaStartsAt(startsAt);
 
   if (!homeTeam || !awayTeam || !startsAt) {
     return { ok: false, message: "Seleções e horário são obrigatórios." };
@@ -519,14 +528,17 @@ export async function createMatch(
     };
   }
 
-  if (Number.isNaN(startsAtDate.getTime())) {
-    return { ok: false, message: "Informe uma data e horário válidos." };
+  if (!startsAtIso) {
+    return {
+      ok: false,
+      message: "Informe uma data e hora válidas no Horário de Brasília."
+    };
   }
 
   const { error } = await supabase.from("matches").insert({
     home_team: homeTeam,
     away_team: awayTeam,
-    starts_at: startsAtDate.toISOString(),
+    starts_at: startsAtIso,
     round: optionalText(formData.get("round")),
     group_name: optionalText(formData.get("group_name"))
   });
@@ -578,10 +590,13 @@ export async function updateMatch(
     };
   }
 
-  const startsAtDate = new Date(startsAt);
+  const startsAtIso = parseBrasiliaStartsAt(startsAt);
 
-  if (Number.isNaN(startsAtDate.getTime())) {
-    return { ok: false, message: "Informe uma data e horário válidos." };
+  if (!startsAtIso) {
+    return {
+      ok: false,
+      message: "Informe uma data e hora válidas no Horário de Brasília."
+    };
   }
 
   if (!["scheduled", "live", "finished"].includes(status)) {
@@ -601,7 +616,7 @@ export async function updateMatch(
     .update({
       home_team: homeTeam,
       away_team: awayTeam,
-      starts_at: startsAtDate.toISOString(),
+      starts_at: startsAtIso,
       round: optionalText(formData.get("round")),
       group_name: optionalText(formData.get("group_name")),
       status,

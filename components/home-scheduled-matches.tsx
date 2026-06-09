@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/card";
 import { getTeamCrestUrl } from "@/lib/teams";
 import type { Match } from "@/lib/types";
-import { formatKickoff } from "@/lib/utils";
+import { formatDateTime } from "@/lib/utils";
 
 function statusLabel(status: Match["status"]) {
   if (status === "finished") return "Finalizado";
@@ -51,19 +51,19 @@ function TeamDisplay({ name }: { name: string }) {
   );
 }
 
-export function HomeDailyMatches({ matches }: { matches: Match[] }) {
+export function HomeScheduledMatches({ matches }: { matches: Match[] }) {
   return (
     <section className="container pt-10">
       <div className="mb-6">
         <p className="text-sm font-semibold uppercase tracking-wide text-primary">
           Partidas
         </p>
-        <h2 className="text-3xl font-bold tracking-normal">Jogos de hoje</h2>
+        <h2 className="text-3xl font-bold tracking-normal">Jogos agendados</h2>
       </div>
 
       {matches.length === 0 ? (
         <div className="rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">
-          Não há jogos agendados para hoje.
+          Não há jogos agendados no momento.
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -85,12 +85,7 @@ export function HomeDailyMatches({ matches }: { matches: Match[] }) {
                   <TeamDisplay name={match.away_team} />
                 </div>
                 <div className="text-center">
-                  <p className="text-xl font-bold">{formatKickoff(match.starts_at)}</p>
-                  {match.status === "finished" ? (
-                    <p className="mt-1 text-sm font-medium text-muted-foreground">
-                      Placar final: {match.home_score} x {match.away_score}
-                    </p>
-                  ) : null}
+                  <p className="text-lg font-bold">{formatDateTime(match.starts_at)}</p>
                 </div>
               </CardContent>
               <CardFooter>

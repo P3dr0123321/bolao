@@ -36,6 +36,15 @@ export type Prediction = {
   updated_at: string;
 };
 
+export type PredictionParticipant = Pick<
+  Participant,
+  "id" | "username" | "full_name" | "avatar_url"
+>;
+
+export type PredictionWithParticipant = Prediction & {
+  participant: PredictionParticipant;
+};
+
 export type FamilyPhoto = {
   id: string;
   image_url: string;
