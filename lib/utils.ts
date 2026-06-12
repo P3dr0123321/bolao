@@ -19,6 +19,31 @@ function getOutcome(homeScore: number, awayScore: number) {
   return "draw";
 }
 
+export function getPredictionResultMessage(
+  prediction: Pick<Prediction, "predicted_home_score" | "predicted_away_score">,
+  match: Pick<Match, "home_score" | "away_score">
+) {
+  if (match.home_score == null || match.away_score == null) {
+    return null;
+  }
+
+  const exactScore =
+    prediction.predicted_home_score === match.home_score &&
+    prediction.predicted_away_score === match.away_score;
+
+  if (exactScore) {
+    return "Que visão de jogo!";
+  }
+
+  const actualOutcome = getOutcome(match.home_score, match.away_score);
+  const predictedOutcome = getOutcome(
+    prediction.predicted_home_score,
+    prediction.predicted_away_score
+  );
+
+  return actualOutcome === predictedOutcome ? "Acerto, miseravi!" : null;
+}
+
 export function calculatePredictionPoints(
   prediction: Pick<Prediction, "predicted_home_score" | "predicted_away_score">,
   match: Pick<Match, "home_score" | "away_score">

@@ -23,7 +23,11 @@ import type {
   Prediction,
   PredictionWithParticipant
 } from "@/lib/types";
-import { formatDateTime, isPredictionLocked } from "@/lib/utils";
+import {
+  formatDateTime,
+  getPredictionResultMessage,
+  isPredictionLocked
+} from "@/lib/utils";
 
 const initialState: ActionState = {
   ok: false,
@@ -49,6 +53,15 @@ export function MatchPredictionCard({
   const locked = match.status === "finished" || isPredictionLocked(match.starts_at);
   const homeCrest = getTeamCrestUrl(match.home_team);
   const awayCrest = getTeamCrestUrl(match.away_team);
+  const resultMessage = prediction
+    ? getPredictionResultMessage(prediction, match)
+    : null;
+  const scoringExplanation =
+    prediction?.points_awarded === 25
+      ? "Pontuação: 10 pelo resultado + 15 pelo placar exato."
+      : prediction?.points_awarded === 10
+        ? "Pontuação: 10 pelo resultado."
+        : "Não pontuou neste jogo.";
 
   return (
     <Card>
@@ -98,17 +111,18 @@ export function MatchPredictionCard({
       </CardHeader>
       <CardContent>
         {match.status === "finished" ? (
-          <div className="mb-4 rounded-md bg-secondary p-3">
+          <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-emerald-950">
             <p className="font-semibold">
               Placar final: {match.home_score} x {match.away_score}
             </p>
-            <p className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+            {resultMessage ? (
+              <p className="mt-1 font-semibold text-emerald-800">{resultMessage}</p>
+            ) : null}
+            <p className="mt-1 flex items-center gap-2 text-sm text-emerald-800">
               <Medal className="h-4 w-4" />
               Você fez {prediction?.points_awarded ?? 0} pontos neste jogo.
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Pontuação: 10 pelo resultado + 15 pelo placar exato.
-            </p>
+            <p className="mt-1 text-xs text-emerald-800">{scoringExplanation}</p>
           </div>
         ) : null}
 
@@ -144,7 +158,9 @@ export function MatchPredictionCard({
           {locked ? (
             <p className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <Lock className="h-4 w-4" />
-              Palpite bloqueado: o prazo terminou 1 hora antes do jogo.
+              {prediction
+                ? "Palpite bloqueado: o prazo terminou 1 hora antes do jogo."
+                : "Camarão que dorme a onda leva!"}
             </p>
           ) : null}
           <div className="flex flex-wrap gap-2">
