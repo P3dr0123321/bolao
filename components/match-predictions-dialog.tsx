@@ -48,11 +48,21 @@ function TeamCrest({ name }: { name: string }) {
 
 export function MatchPredictionsDialog({
   match,
-  predictions
+  predictions,
+  visible
 }: {
   match: Match;
   predictions: PredictionWithParticipant[];
+  visible: boolean;
 }) {
+  if (!visible) {
+    return (
+      <Button type="button" variant="outline" disabled>
+        Ver palpites
+      </Button>
+    );
+  }
+
   return (
     <Dialog>
       <DialogTrigger asChild>

@@ -1,16 +1,27 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import type { Match, Prediction } from "@/lib/types";
+import type { Match, MatchStatus, Prediction } from "@/lib/types";
 import { formatBrasiliaDateTime, formatBrasiliaTime } from "@/lib/timezone";
+
+const PREDICTION_DEADLINE_OFFSET_MS = 60 * 60 * 1000;
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function getPredictionDeadline(startsAt: string | Date) {
+  return new Date(startsAt).getTime() - PREDICTION_DEADLINE_OFFSET_MS;
+}
+
 export function isPredictionLocked(startsAt: string | Date) {
-  const kickoff = new Date(startsAt).getTime();
-  const lockTime = kickoff - 60 * 60 * 1000;
-  return Date.now() >= lockTime;
+  return Date.now() >= getPredictionDeadline(startsAt);
+}
+
+export function canViewMatchPredictions(
+  startsAt: string | Date,
+  status?: MatchStatus
+) {
+  return status === "finished" || isPredictionLocked(startsAt);
 }
 
 function getOutcome(homeScore: number, awayScore: number) {

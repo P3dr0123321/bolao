@@ -1,10 +1,13 @@
 "use client";
 
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useCallback, useState } from "react";
 import { useFormState } from "react-dom";
 import { Clock, Lock, Medal } from "lucide-react";
 import { savePrediction } from "@/app/actions/predictions";
 import { ActionMessage } from "@/components/action-message";
+import { MatchCountdown } from "@/components/match-countdown";
 import { MatchPredictionsDialog } from "@/components/match-predictions-dialog";
 import { SubmitButton } from "@/components/submit-button";
 import { Badge } from "@/components/ui/badge";
@@ -25,8 +28,7 @@ import type {
 } from "@/lib/types";
 import {
   formatDateTime,
-  getPredictionResultMessage,
-  isPredictionLocked
+  getPredictionResultMessage
 } from "@/lib/utils";
 
 const initialState: ActionState = {
@@ -43,14 +45,20 @@ function statusLabel(status: Match["status"]) {
 export function MatchPredictionCard({
   match,
   prediction,
-  allPredictions
+  allPredictions,
+  initialPredictionsVisible
 }: {
   match: Match;
   prediction: Prediction | null;
   allPredictions: PredictionWithParticipant[];
+  initialPredictionsVisible: boolean;
 }) {
+  const router = useRouter();
   const [state, formAction] = useFormState(savePrediction, initialState);
-  const locked = match.status === "finished" || isPredictionLocked(match.starts_at);
+  const [deadlineReached, setDeadlineReached] = useState(
+    initialPredictionsVisible || match.status === "finished"
+  );
+  const locked = match.status === "finished" || deadlineReached;
   const homeCrest = getTeamCrestUrl(match.home_team);
   const awayCrest = getTeamCrestUrl(match.away_team);
   const resultMessage = prediction
@@ -62,6 +70,10 @@ export function MatchPredictionCard({
       : prediction?.points_awarded === 10
         ? "Pontuação: 10 pelo resultado."
         : "Não pontuou neste jogo.";
+  const handleDeadlineComplete = useCallback(() => {
+    setDeadlineReached(true);
+    router.refresh();
+  }, [router]);
 
   return (
     <Card>
@@ -162,15 +174,37 @@ export function MatchPredictionCard({
                 ? "Palpite bloqueado: o prazo terminou 1 hora antes do jogo."
                 : "Camarão que dorme a onda leva!"}
             </p>
-          ) : null}
+          ) : (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Clock className="h-4 w-4" />
+              <span>
+                Palpites bloqueiam e ficam visíveis em{" "}
+                <MatchCountdown
+                  startsAt={match.starts_at}
+                  onComplete={handleDeadlineComplete}
+                />
+              </span>
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             {!locked ? (
               <SubmitButton pendingText="Salvando palpite...">
                 {prediction ? "Atualizar palpite" : "Salvar palpite"}
               </SubmitButton>
             ) : null}
-            <MatchPredictionsDialog match={match} predictions={allPredictions} />
+            <MatchPredictionsDialog
+              match={match}
+              predictions={allPredictions}
+              visible={initialPredictionsVisible}
+            />
           </div>
+          {!initialPredictionsVisible ? (
+            <p className="text-xs text-muted-foreground">
+              {deadlineReached
+                ? "Atualizando os palpites liberados..."
+                : "Os palpites serão liberados 1 hora antes do jogo."}
+            </p>
+          ) : null}
           <ActionMessage state={state} />
         </form>
       </CardContent>
