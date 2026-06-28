@@ -74,3 +74,15 @@ Deploy to Vercel and configure the same environment variables in the Vercel proj
 - Mutations use Server Actions. Privileged admin actions use a server-only Supabase Admin client.
 - RLS also enforces authenticated reads, own-prediction writes, admin management, and the 1-hour prediction deadline.
 - Scoring is cumulative: 10 points for the correct winner or draw, plus 15 additional points for the exact score.
+- If the live Supabase project was created before prediction visibility was opened, run this SQL in the Supabase SQL editor so authenticated users may read predictions after the app's server-side deadline gate allows them:
+
+```sql
+drop policy if exists "participants read own predictions" on public.predictions;
+drop policy if exists "authenticated users can read all predictions" on public.predictions;
+
+create policy "authenticated users can read all predictions"
+on public.predictions
+for select
+to authenticated
+using (true);
+```

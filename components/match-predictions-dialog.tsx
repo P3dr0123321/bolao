@@ -1,6 +1,8 @@
 "use client";
 
 import Image from "next/image";
+import { useCallback, useState } from "react";
+import { getMatchPredictions } from "@/app/actions/predictions";
 import {
   Avatar,
   AvatarFallback,
@@ -48,14 +50,50 @@ function TeamCrest({ name }: { name: string }) {
 
 export function MatchPredictionsDialog({
   match,
-  predictions,
-  visible
+  canViewPredictions
 }: {
   match: Match;
-  predictions: PredictionWithParticipant[];
-  visible: boolean;
+  canViewPredictions: boolean;
 }) {
-  if (!visible) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [predictions, setPredictions] = useState<
+    PredictionWithParticipant[] | null
+  >(null);
+
+  const loadPredictions = useCallback(async () => {
+    if (!canViewPredictions || loading || predictions) {
+      return;
+    }
+
+    setLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const result = await getMatchPredictions(match.id);
+
+      if (result.ok) {
+        setPredictions(result.predictions);
+      } else {
+        setErrorMessage(result.message);
+      }
+    } catch {
+      setErrorMessage("Não foi possível carregar os palpites.");
+    } finally {
+      setLoading(false);
+    }
+  }, [canViewPredictions, loading, match.id, predictions]);
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+
+    if (nextOpen) {
+      void loadPredictions();
+    }
+  };
+
+  if (!canViewPredictions) {
     return (
       <Button type="button" variant="outline" disabled>
         Ver palpites
@@ -63,8 +101,10 @@ export function MatchPredictionsDialog({
     );
   }
 
+  const predictionCount = predictions?.length ?? 0;
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button type="button" variant="outline">
           Ver palpites
@@ -78,54 +118,73 @@ export function MatchPredictionsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {predictions.length === 0 ? (
+        {loading ? (
           <p className="rounded-lg border p-6 text-center text-muted-foreground">
-            Nenhum palpite registrado para este jogo ainda.
+            Carregando palpites...
+          </p>
+        ) : errorMessage ? (
+          <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-6 text-center text-sm text-destructive">
+            {errorMessage}
           </p>
         ) : (
-          <div className="space-y-3">
-            {predictions.map((prediction) => (
-              <div
-                key={prediction.id}
-                className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <Avatar className="h-10 w-10 border">
-                    <AvatarImage
-                      src={prediction.participant.avatar_url ?? undefined}
-                      alt={prediction.participant.full_name}
-                    />
-                    <AvatarFallback>
-                      {getInitials(prediction.participant.full_name)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">
-                      {prediction.participant.full_name}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      @{prediction.participant.username}
-                    </p>
-                  </div>
-                </div>
+          <>
+            <p className="text-sm font-medium text-muted-foreground">
+              {predictionCount}{" "}
+              {predictionCount === 1
+                ? "palpite registrado"
+                : "palpites registrados"}
+            </p>
 
-                <div className="flex items-center justify-between gap-3 sm:justify-end">
-                  <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 font-bold">
-                    <TeamCrest name={match.home_team} />
-                    <span>{prediction.predicted_home_score}</span>
-                    <span className="text-muted-foreground">x</span>
-                    <span>{prediction.predicted_away_score}</span>
-                    <TeamCrest name={match.away_team} />
+            {predictionCount === 0 ? (
+              <p className="rounded-lg border p-6 text-center text-muted-foreground">
+                Nenhum palpite registrado para este jogo ainda.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {predictions?.map((prediction) => (
+                  <div
+                    key={prediction.id}
+                    className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Avatar className="h-10 w-10 border">
+                        <AvatarImage
+                          src={prediction.participant.avatar_url ?? undefined}
+                          alt={prediction.participant.full_name}
+                        />
+                        <AvatarFallback>
+                          {getInitials(prediction.participant.full_name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">
+                          {prediction.participant.full_name}
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          @{prediction.participant.username}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-3 sm:justify-end">
+                      <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 font-bold">
+                        <TeamCrest name={match.home_team} />
+                        <span>{prediction.predicted_home_score}</span>
+                        <span className="text-muted-foreground">x</span>
+                        <span>{prediction.predicted_away_score}</span>
+                        <TeamCrest name={match.away_team} />
+                      </div>
+                      {match.status === "finished" ? (
+                        <span className="whitespace-nowrap text-sm font-semibold text-primary">
+                          {prediction.points_awarded} pontos
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
-                  {match.status === "finished" ? (
-                    <span className="whitespace-nowrap text-sm font-semibold text-primary">
-                      {prediction.points_awarded} pontos
-                    </span>
-                  ) : null}
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </>
         )}
       </DialogContent>
     </Dialog>

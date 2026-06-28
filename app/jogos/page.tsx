@@ -3,13 +3,7 @@ import { Header } from "@/components/header";
 import { MatchPredictionCard } from "@/components/match-prediction-card";
 import { requireParticipant } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import type {
-  Match,
-  MatchStatus,
-  Prediction,
-  PredictionParticipant,
-  PredictionWithParticipant
-} from "@/lib/types";
+import type { Match, MatchStatus, Prediction } from "@/lib/types";
 import { canViewMatchPredictions, cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -25,17 +19,13 @@ function MatchSection({
   status,
   matches,
   emptyMessage,
-  predictionsByMatch,
-  allPredictionsByMatch,
-  visibleMatchIds
+  predictionsByMatch
 }: {
   title: string;
   status: MatchStatus;
   matches: Match[];
   emptyMessage: string;
   predictionsByMatch: Map<string, Prediction>;
-  allPredictionsByMatch: Map<string, PredictionWithParticipant[]>;
-  visibleMatchIds: Set<string>;
 }) {
   return (
     <section className="space-y-4">
@@ -58,8 +48,10 @@ function MatchSection({
               key={match.id}
               match={match}
               prediction={predictionsByMatch.get(match.id) ?? null}
-              allPredictions={allPredictionsByMatch.get(match.id) ?? []}
-              initialPredictionsVisible={visibleMatchIds.has(match.id)}
+              initialCanViewPredictions={canViewMatchPredictions(
+                match.starts_at,
+                match.status
+              )}
             />
           ))}
         </div>
@@ -81,70 +73,12 @@ export default async function JogosPage() {
   ]);
 
   const matches = (matchesResult.data ?? []) as Match[];
-  const visibleMatchIds = new Set(
-    matches
-      .filter((match) =>
-        canViewMatchPredictions(match.starts_at, match.status)
-      )
-      .map((match) => match.id)
-  );
   const predictionsByMatch = new Map(
     ((predictionsResult.data ?? []) as Prediction[]).map((prediction) => [
       prediction.match_id,
       prediction
     ])
   );
-
-  let allPredictions: Prediction[] = [];
-  let participantSummaries: PredictionParticipant[] = [];
-  let visiblePredictionsError = false;
-
-  if (visibleMatchIds.size > 0) {
-    // Other participants' predictions are only loaded and sent to the client
-    // after the same deadline that locks prediction editing.
-    const [allPredictionsResult, participantSummariesResult] = await Promise.all([
-      supabase
-        .from("predictions")
-        .select("*")
-        .in("match_id", Array.from(visibleMatchIds)),
-      supabase
-        .from("participants")
-        .select("id, username, full_name, avatar_url")
-    ]);
-
-    allPredictions = (allPredictionsResult.data ?? []) as Prediction[];
-    participantSummaries = (participantSummariesResult.data ??
-      []) as PredictionParticipant[];
-    visiblePredictionsError = Boolean(
-      allPredictionsResult.error || participantSummariesResult.error
-    );
-  }
-
-  const participantsById = new Map(
-    participantSummaries.map((participantSummary) => [
-      participantSummary.id,
-      participantSummary
-    ])
-  );
-  const allPredictionsByMatch = new Map<string, PredictionWithParticipant[]>();
-
-  for (const prediction of allPredictions) {
-    const predictionParticipant = participantsById.get(prediction.participant_id);
-
-    if (!predictionParticipant) {
-      continue;
-    }
-
-    const predictionsForMatch = allPredictionsByMatch.get(prediction.match_id) ?? [];
-    predictionsForMatch.push({
-      ...prediction,
-      participant: predictionParticipant
-    });
-    predictionsForMatch.sort((a, b) =>
-      a.participant.full_name.localeCompare(b.participant.full_name, "pt-BR")
-    );
-    allPredictionsByMatch.set(prediction.match_id, predictionsForMatch);
-  }
 
   const byStartsAtAscending = (a: Match, b: Match) =>
     new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime();
@@ -160,10 +94,7 @@ export default async function JogosPage() {
   const finishedMatches = matches
     .filter((match) => match.status === "finished")
     .sort(byStartsAtDescending);
-  const hasError =
-    matchesResult.error ||
-    predictionsResult.error ||
-    visiblePredictionsError;
+  const hasError = matchesResult.error || predictionsResult.error;
 
   return (
     <>
@@ -198,8 +129,6 @@ export default async function JogosPage() {
               matches={scheduledMatches}
               emptyMessage="Não há jogos agendados."
               predictionsByMatch={predictionsByMatch}
-              allPredictionsByMatch={allPredictionsByMatch}
-              visibleMatchIds={visibleMatchIds}
             />
 
             {liveMatches.length > 0 ? (
@@ -209,8 +138,6 @@ export default async function JogosPage() {
                 matches={liveMatches}
                 emptyMessage="Não há jogos ao vivo."
                 predictionsByMatch={predictionsByMatch}
-                allPredictionsByMatch={allPredictionsByMatch}
-                visibleMatchIds={visibleMatchIds}
               />
             ) : null}
 
@@ -220,8 +147,6 @@ export default async function JogosPage() {
               matches={finishedMatches}
               emptyMessage="Nenhum jogo finalizado ainda."
               predictionsByMatch={predictionsByMatch}
-              allPredictionsByMatch={allPredictionsByMatch}
-              visibleMatchIds={visibleMatchIds}
             />
           </div>
         )}

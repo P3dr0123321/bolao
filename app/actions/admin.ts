@@ -102,8 +102,15 @@ async function recalculateMatchPoints(
     throw new Error(predictionsError.message);
   }
 
+  const predictionRows = (predictions ?? []) as Prediction[];
+
+  if (process.env.NODE_ENV === "development") {
+    console.log("[admin] scoring match:", match.id);
+    console.log("[admin] predictions loaded for scoring:", predictionRows.length);
+  }
+
   const updateResults = await Promise.all(
-    ((predictions ?? []) as Prediction[]).map((prediction) =>
+    predictionRows.map((prediction) =>
       supabase
         .from("predictions")
         .update({
@@ -116,10 +123,26 @@ async function recalculateMatchPoints(
     )
   );
 
-  const updateError = updateResults.find((result) => result.error)?.error;
+  const updateErrors = updateResults
+    .map((result, index) => ({
+      predictionId: predictionRows[index]?.id,
+      error: result.error
+    }))
+    .filter((result) => result.error);
 
-  if (updateError) {
-    throw new Error(updateError.message);
+  if (process.env.NODE_ENV === "development") {
+    console.log("[admin] prediction updates attempted:", updateResults.length);
+
+    if (updateErrors.length > 0) {
+      console.error("[admin] prediction update errors:", updateErrors);
+    }
+  }
+
+  if (updateErrors.length > 0) {
+    throw new Error(
+      updateErrors[0].error?.message ??
+        "Nao foi possivel atualizar todos os palpites."
+    );
   }
 
   await recalculateLeaderboard();
@@ -713,6 +736,10 @@ export async function finishMatch(
     awayScore < 0
   ) {
     return { ok: false, message: "Informe placares válidos." };
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    console.log("[admin] finalizing match:", matchId);
   }
 
   const { data: updatedMatch, error: matchError } = await supabase

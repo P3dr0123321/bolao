@@ -30,7 +30,7 @@ export async function recalculateLeaderboard() {
     throw new Error(participantsError.message);
   }
 
-  await Promise.all(
+  const updateResults = await Promise.all(
     (participants ?? []).map((participant) =>
       supabase
         .from("participants")
@@ -38,4 +38,10 @@ export async function recalculateLeaderboard() {
         .eq("id", participant.id)
     )
   );
+
+  const updateError = updateResults.find((result) => result.error)?.error;
+
+  if (updateError) {
+    throw new Error(updateError.message);
+  }
 }

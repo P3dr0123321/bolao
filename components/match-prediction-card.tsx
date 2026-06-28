@@ -20,12 +20,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getTeamCrestUrl } from "@/lib/teams";
-import type {
-  ActionState,
-  Match,
-  Prediction,
-  PredictionWithParticipant
-} from "@/lib/types";
+import type { ActionState, Match, Prediction } from "@/lib/types";
 import {
   formatDateTime,
   getPredictionResultMessage
@@ -45,18 +40,16 @@ function statusLabel(status: Match["status"]) {
 export function MatchPredictionCard({
   match,
   prediction,
-  allPredictions,
-  initialPredictionsVisible
+  initialCanViewPredictions
 }: {
   match: Match;
   prediction: Prediction | null;
-  allPredictions: PredictionWithParticipant[];
-  initialPredictionsVisible: boolean;
+  initialCanViewPredictions: boolean;
 }) {
   const router = useRouter();
   const [state, formAction] = useFormState(savePrediction, initialState);
   const [deadlineReached, setDeadlineReached] = useState(
-    initialPredictionsVisible || match.status === "finished"
+    initialCanViewPredictions || match.status === "finished"
   );
   const locked = match.status === "finished" || deadlineReached;
   const homeCrest = getTeamCrestUrl(match.home_team);
@@ -194,15 +187,12 @@ export function MatchPredictionCard({
             ) : null}
             <MatchPredictionsDialog
               match={match}
-              predictions={allPredictions}
-              visible={initialPredictionsVisible}
+              canViewPredictions={deadlineReached}
             />
           </div>
-          {!initialPredictionsVisible ? (
+          {!deadlineReached ? (
             <p className="text-xs text-muted-foreground">
-              {deadlineReached
-                ? "Atualizando os palpites liberados..."
-                : "Os palpites serão liberados 1 hora antes do jogo."}
+              Os palpites serão liberados 1 hora antes do jogo.
             </p>
           ) : null}
           <ActionMessage state={state} />
