@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useFormState } from "react-dom";
-import { RotateCcw } from "lucide-react";
+import { RefreshCw, RotateCcw } from "lucide-react";
 import {
+  recalculateAllFinishedMatches,
   resetAllPoints,
   updateParticipantPoints
 } from "@/app/actions/admin";
@@ -135,9 +136,44 @@ function ResetPointsDialog() {
   );
 }
 
-export function AdminPointsManager({ participants }: { participants: Participant[] }) {
+function RecalculatePointsForm() {
+  const [state, formAction] = useFormState(
+    recalculateAllFinishedMatches,
+    initialState
+  );
+
   return (
-    <section className="container pt-10">
+    <form
+      action={formAction}
+      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-4"
+    >
+      <div>
+        <p className="font-medium">Recalcular pontuação</p>
+        <p className="text-sm text-muted-foreground">
+          Recalcula os pontos de todos os jogos finalizados com base nos
+          resultados atuais.
+        </p>
+      </div>
+      <SubmitButton pendingText="Recalculando...">
+        <RefreshCw className="h-4 w-4" />
+        Recalcular pontuação
+      </SubmitButton>
+      <div className="basis-full">
+        <ActionMessage state={state} />
+      </div>
+    </form>
+  );
+}
+
+export function AdminPointsManager({
+  participants,
+  className = "container pt-10"
+}: {
+  participants: Participant[];
+  className?: string;
+}) {
+  return (
+    <section className={className}>
       <Card>
         <CardHeader>
           <CardTitle>Administração de pontos</CardTitle>
@@ -146,6 +182,8 @@ export function AdminPointsManager({ participants }: { participants: Participant
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
+          <RecalculatePointsForm />
+
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-4">
             <div>
               <p className="font-medium">Reset completo da pontuação</p>

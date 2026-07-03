@@ -48,12 +48,44 @@ create table if not exists public.family_photos (
   created_at timestamptz default now()
 );
 
+create table if not exists public.final_prediction_settings (
+  id boolean primary key default true,
+  is_enabled boolean not null default false,
+  prediction_deadline_at timestamptz,
+  visibility_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint final_prediction_settings_singleton check (id = true),
+  constraint final_prediction_settings_visibility_after_deadline check (
+    prediction_deadline_at is null
+    or visibility_at is null
+    or visibility_at >= prediction_deadline_at
+  )
+);
+
+create table if not exists public.final_predictions (
+  id uuid primary key default gen_random_uuid(),
+  participant_id uuid not null references public.participants(id) on delete cascade,
+  finalist_one text not null,
+  finalist_two text not null,
+  winner text not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (participant_id),
+  constraint final_predictions_distinct_finalists check (finalist_one <> finalist_two),
+  constraint final_predictions_winner_is_finalist check (
+    winner = finalist_one or winner = finalist_two
+  )
+);
+
 create index if not exists participants_total_points_idx
   on public.participants(total_points desc, full_name asc);
 create index if not exists matches_starts_at_idx on public.matches(starts_at);
 create index if not exists predictions_participant_id_idx on public.predictions(participant_id);
 create index if not exists predictions_match_id_idx on public.predictions(match_id);
 create index if not exists family_photos_sort_order_idx on public.family_photos(sort_order);
+create index if not exists final_predictions_participant_id_idx
+  on public.final_predictions(participant_id);
 
 create or replace function public.touch_updated_at()
 returns trigger
@@ -68,6 +100,16 @@ $$;
 drop trigger if exists predictions_touch_updated_at on public.predictions;
 create trigger predictions_touch_updated_at
 before update on public.predictions
+for each row execute function public.touch_updated_at();
+
+drop trigger if exists final_prediction_settings_touch_updated_at on public.final_prediction_settings;
+create trigger final_prediction_settings_touch_updated_at
+before update on public.final_prediction_settings
+for each row execute function public.touch_updated_at();
+
+drop trigger if exists final_predictions_touch_updated_at on public.final_predictions;
+create trigger final_predictions_touch_updated_at
+before update on public.final_predictions
 for each row execute function public.touch_updated_at();
 
 create or replace function public.current_participant_id()
@@ -111,10 +153,29 @@ as $$
   );
 $$;
 
+create or replace function public.final_prediction_is_open()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.final_prediction_settings
+    where id = true
+      and is_enabled = true
+      and prediction_deadline_at is not null
+      and now() <= prediction_deadline_at
+  );
+$$;
+
 alter table public.participants enable row level security;
 alter table public.matches enable row level security;
 alter table public.predictions enable row level security;
 alter table public.family_photos enable row level security;
+alter table public.final_prediction_settings enable row level security;
+alter table public.final_predictions enable row level security;
 
 drop policy if exists "participants are readable by authenticated users" on public.participants;
 create policy "participants are readable by authenticated users"
@@ -190,6 +251,58 @@ on public.family_photos for all
 to authenticated
 using (public.is_admin())
 with check (public.is_admin());
+
+drop policy if exists "final prediction settings readable by authenticated users" on public.final_prediction_settings;
+create policy "final prediction settings readable by authenticated users"
+on public.final_prediction_settings for select
+to authenticated
+using (true);
+
+drop policy if exists "admins can manage final prediction settings" on public.final_prediction_settings;
+create policy "admins can manage final prediction settings"
+on public.final_prediction_settings for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+drop policy if exists "participants read own final prediction" on public.final_predictions;
+create policy "participants read own final prediction"
+on public.final_predictions for select
+to authenticated
+using (participant_id = public.current_participant_id());
+
+drop policy if exists "participants insert own open final prediction" on public.final_predictions;
+create policy "participants insert own open final prediction"
+on public.final_predictions for insert
+to authenticated
+with check (
+  participant_id = public.current_participant_id()
+  and public.final_prediction_is_open()
+);
+
+drop policy if exists "participants update own open final prediction" on public.final_predictions;
+create policy "participants update own open final prediction"
+on public.final_predictions for update
+to authenticated
+using (
+  participant_id = public.current_participant_id()
+  and public.final_prediction_is_open()
+)
+with check (
+  participant_id = public.current_participant_id()
+  and public.final_prediction_is_open()
+);
+
+drop policy if exists "admins can manage final predictions" on public.final_predictions;
+create policy "admins can manage final predictions"
+on public.final_predictions for all
+to authenticated
+using (public.is_admin())
+with check (public.is_admin());
+
+insert into public.final_prediction_settings (id, is_enabled)
+values (true, false)
+on conflict (id) do nothing;
 
 insert into storage.buckets (id, name, public)
 values

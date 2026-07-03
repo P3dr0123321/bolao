@@ -51,6 +51,7 @@ After that, log in at `/login` using username `admin` and the password you creat
 - Move the match start time to less than 1 hour away and confirm prediction inputs are blocked.
 - Enter the final score from `/admin`; correct winner or draw predictions receive 10 points and the leaderboard updates.
 - Exact scores receive an additional 15 points, for a maximum of 25 points per match.
+- Configure "Palpite da Final" from `/admin`; participants can choose two finalists and a champion until the configured deadline.
 - Upload up to 3 family photos from `/admin`; confirm they appear in the home carousel.
 
 ## Horário dos jogos
@@ -86,3 +87,4 @@ for select
 to authenticated
 using (true);
 ```
+- To enable "Palpite da Final" on an existing Supabase project, run the new `final_prediction_settings` and `final_predictions` SQL section from `supabase/schema.sql`. After that, the admin must configure the prediction deadline and visibility time in `/admin` before participants can submit.

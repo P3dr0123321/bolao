@@ -1,4 +1,6 @@
 import { CalendarDays } from "lucide-react";
+import { getFinalPredictionState } from "@/app/actions/final-predictions";
+import { FinalPredictionCard } from "@/components/final-prediction-card";
 import { Header } from "@/components/header";
 import { MatchPredictionCard } from "@/components/match-prediction-card";
 import { requireParticipant } from "@/lib/auth";
@@ -64,12 +66,13 @@ export default async function JogosPage() {
   const participant = await requireParticipant();
   const supabase = createClient();
 
-  const [matchesResult, predictionsResult] = await Promise.all([
+  const [matchesResult, predictionsResult, finalPredictionState] = await Promise.all([
     supabase.from("matches").select("*").order("starts_at", { ascending: true }),
     supabase
       .from("predictions")
       .select("*")
-      .eq("participant_id", participant.id)
+      .eq("participant_id", participant.id),
+    getFinalPredictionState()
   ]);
 
   const matches = (matchesResult.data ?? []) as Match[];
@@ -123,6 +126,8 @@ export default async function JogosPage() {
           </div>
         ) : (
           <div className="space-y-10">
+            <FinalPredictionCard state={finalPredictionState} />
+
             <MatchSection
               title="Agendado"
               status="scheduled"

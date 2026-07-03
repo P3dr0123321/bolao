@@ -45,6 +45,39 @@ export type PredictionWithParticipant = Prediction & {
   participant: PredictionParticipant;
 };
 
+export type FinalPredictionSettings = {
+  id: boolean;
+  is_enabled: boolean;
+  prediction_deadline_at: string | null;
+  visibility_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FinalPrediction = {
+  id: string;
+  participant_id: string;
+  finalist_one: string;
+  finalist_two: string;
+  winner: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FinalPredictionWithParticipant = FinalPrediction & {
+  participant: PredictionParticipant;
+};
+
+export type FinalPredictionState = {
+  settings: FinalPredictionSettings | null;
+  prediction: FinalPrediction | null;
+  isEnabled: boolean;
+  canSubmit: boolean;
+  canViewAll: boolean;
+  predictionDeadlinePassed: boolean;
+  visibilityPassed: boolean;
+};
+
 export type FamilyPhoto = {
   id: string;
   image_url: string;

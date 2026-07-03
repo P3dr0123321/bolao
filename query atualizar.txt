@@ -1,0 +1,12 @@
+update public.participants pa
+set total_points = coalesce(t.calculated_total, 0)
+from (
+  select
+    pa2.id,
+    coalesce(sum(p.points_awarded), 0)::int as calculated_total
+  from public.participants pa2
+  left join public.predictions p
+    on p.participant_id = pa2.id
+  group by pa2.id
+) t
+where pa.id = t.id;

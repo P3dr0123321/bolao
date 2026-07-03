@@ -56,32 +56,18 @@ export function getPredictionResultMessage(
 }
 
 export function calculatePredictionPoints(
-  prediction: Pick<Prediction, "predicted_home_score" | "predicted_away_score">,
-  match: Pick<Match, "home_score" | "away_score">
+  predictedHome: number,
+  predictedAway: number,
+  actualHome: number,
+  actualAway: number
 ) {
-  if (match.home_score == null || match.away_score == null) {
-    return 0;
-  }
+  const exactScore = predictedHome === actualHome && predictedAway === actualAway;
+  const predictedOutcome = getOutcome(predictedHome, predictedAway);
+  const actualOutcome = getOutcome(actualHome, actualAway);
 
-  let points = 0;
-  const actualOutcome = getOutcome(match.home_score, match.away_score);
-  const predictedOutcome = getOutcome(
-    prediction.predicted_home_score,
-    prediction.predicted_away_score
-  );
-
-  if (actualOutcome === predictedOutcome) {
-    points += 10;
-  }
-
-  if (
-    prediction.predicted_home_score === match.home_score &&
-    prediction.predicted_away_score === match.away_score
-  ) {
-    points += 15;
-  }
-
-  return points;
+  if (exactScore) return 25;
+  if (predictedOutcome === actualOutcome) return 10;
+  return 0;
 }
 
 export function formatKickoff(startsAt: string) {

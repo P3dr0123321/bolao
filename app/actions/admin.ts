@@ -11,8 +11,7 @@ import type {
   ActionState,
   Match,
   MatchStatus,
-  Participant,
-  Prediction
+  Participant
 } from "@/lib/types";
 import { usernameToEmail } from "@/lib/auth-utils";
 import { calculatePredictionPoints } from "@/lib/utils";
@@ -81,6 +80,10 @@ function optionalScore(value: FormDataEntryValue | null) {
   };
 }
 
+function isValidScore(value: unknown): value is number {
+  return Number.isInteger(value) && Number(value) >= 0;
+}
+
 function parseBrasiliaStartsAt(value: string) {
   try {
     return brasiliaLocalInputToUtcIso(value);
@@ -89,63 +92,140 @@ function parseBrasiliaStartsAt(value: string) {
   }
 }
 
-async function recalculateMatchPoints(
+async function scorePredictionsForMatch(
   supabase: ReturnType<typeof createAdminClient>,
-  match: Match
-) {
+  matchId: string,
+  homeScore: number,
+  awayScore: number
+): Promise<{ scoredCount: number; errors: string[] }> {
   const { data: predictions, error: predictionsError } = await supabase
     .from("predictions")
-    .select("*")
-    .eq("match_id", match.id);
+    .select(
+      `
+        id,
+        participant_id,
+        match_id,
+        predicted_home_score,
+        predicted_away_score
+      `
+    )
+    .eq("match_id", matchId);
 
   if (predictionsError) {
-    throw new Error(predictionsError.message);
+    return { scoredCount: 0, errors: [predictionsError.message] };
   }
 
-  const predictionRows = (predictions ?? []) as Prediction[];
-
   if (process.env.NODE_ENV === "development") {
-    console.log("[admin] scoring match:", match.id);
-    console.log("[admin] predictions loaded for scoring:", predictionRows.length);
+    console.log("[scorePredictionsForMatch]", {
+      matchId,
+      predictionsFound: predictions?.length ?? 0
+    });
   }
 
-  const updateResults = await Promise.all(
-    predictionRows.map((prediction) =>
-      supabase
-        .from("predictions")
-        .update({
-          points_awarded:
-            match.status === "finished"
-              ? calculatePredictionPoints(prediction, match)
-              : 0
-        })
-        .eq("id", prediction.id)
-    )
-  );
+  let scoredCount = 0;
+  const errors: string[] = [];
 
-  const updateErrors = updateResults
-    .map((result, index) => ({
-      predictionId: predictionRows[index]?.id,
-      error: result.error
-    }))
-    .filter((result) => result.error);
+  for (const prediction of predictions ?? []) {
+    const points = calculatePredictionPoints(
+      prediction.predicted_home_score,
+      prediction.predicted_away_score,
+      homeScore,
+      awayScore
+    );
 
-  if (process.env.NODE_ENV === "development") {
-    console.log("[admin] prediction updates attempted:", updateResults.length);
+    const { error: updateError } = await supabase
+      .from("predictions")
+      .update({ points_awarded: points })
+      .eq("id", prediction.id);
 
-    if (updateErrors.length > 0) {
-      console.error("[admin] prediction update errors:", updateErrors);
+    if (updateError) {
+      errors.push(`${prediction.id}: ${updateError.message}`);
+    } else {
+      scoredCount += 1;
     }
   }
 
-  if (updateErrors.length > 0) {
+  return { scoredCount, errors };
+}
+
+async function clearPredictionPointsForMatch(
+  supabase: ReturnType<typeof createAdminClient>,
+  matchId: string
+) {
+  const { error } = await supabase
+    .from("predictions")
+    .update({ points_awarded: 0 })
+    .eq("match_id", matchId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+async function recalculateLeaderboardOrThrow(
+  supabase: ReturnType<typeof createAdminClient>
+) {
+  const result = await recalculateLeaderboard(supabase);
+
+  if (!result.ok) {
     throw new Error(
-      updateErrors[0].error?.message ??
-        "Nao foi possivel atualizar todos os palpites."
+      result.errors[0] ?? "Nao foi possivel recalcular a tabela."
     );
   }
 
-  await recalculateLeaderboard();
+  return result;
+}
+
+async function recalculateMatchPoints(
+  supabase: ReturnType<typeof createAdminClient>,
+  match: Match
+): Promise<{ scoredCount: number; errors: string[] }> {
+  if (match.status !== "finished") {
+    await clearPredictionPointsForMatch(supabase, match.id);
+    await recalculateLeaderboardOrThrow(supabase);
+    return { scoredCount: 0, errors: [] };
+  }
+
+  if (!isValidScore(match.home_score) || !isValidScore(match.away_score)) {
+    throw new Error("Placar final invalido para pontuacao.");
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    console.log("[finishMatch] match updated", {
+      matchId: match.id,
+      homeScore: match.home_score,
+      awayScore: match.away_score
+    });
+  }
+
+  const scoreResult = await scorePredictionsForMatch(
+    supabase,
+    match.id,
+    match.home_score,
+    match.away_score
+  );
+
+  if (scoreResult.errors.length > 0) {
+    throw new Error(scoreResult.errors[0]);
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    console.log("[finishMatch] predictions scored", {
+      matchId: match.id,
+      scoredCount: scoreResult.scoredCount
+    });
+  }
+
+  const leaderboardResult = await recalculateLeaderboardOrThrow(supabase);
+
+  if (process.env.NODE_ENV === "development") {
+    console.log("[finishMatch] leaderboard recalculated", {
+      participantsUpdated: leaderboardResult.participantsUpdated,
+      predictionsCount: leaderboardResult.predictionsCount
+    });
+  }
+
+  return scoreResult;
 }
 
 export async function createParticipant(
@@ -432,7 +512,7 @@ export async function deleteParticipant(
   }
 
   try {
-    await recalculateLeaderboard();
+    await recalculateLeaderboardOrThrow(supabase);
   } catch (error) {
     return {
       ok: false,
@@ -634,6 +714,15 @@ export async function updateMatch(
     return { ok: false, message: "Informe os dois placares para finalizar o jogo." };
   }
 
+  if (process.env.NODE_ENV === "development" && status === "finished") {
+    console.log("[finalizeMatch] called", {
+      matchId,
+      homeScore: homeScore.value,
+      awayScore: awayScore.value,
+      status
+    });
+  }
+
   const { data: updatedData, error: updateError } = await supabase
     .from("matches")
     .update({
@@ -657,9 +746,18 @@ export async function updateMatch(
     };
   }
 
-  if ((existingData as Match).status === "finished" || status === "finished") {
+  const updatedMatch = updatedData as Match;
+
+  if (status === "finished" || (existingData as Match).status === "finished") {
     try {
-      await recalculateMatchPoints(supabase, updatedData as Match);
+      const scoreResult = await recalculateMatchPoints(supabase, updatedMatch);
+      if (status === "finished") {
+        revalidateMatchPages();
+        return {
+          ok: true,
+          message: `Jogo atualizado e pontuacao recalculada para ${scoreResult.scoredCount} palpites.`
+        };
+      }
     } catch (error) {
       console.error("Falha ao recalcular pontos após editar jogo:", error);
       return {
@@ -705,7 +803,7 @@ export async function deleteMatch(
   }
 
   try {
-    await recalculateLeaderboard();
+    await recalculateLeaderboardOrThrow(supabase);
   } catch (error) {
     console.error("Falha ao recalcular tabela após excluir jogo:", error);
     return {
@@ -725,28 +823,33 @@ export async function finishMatch(
   await requireAdmin();
   const supabase = createAdminClient();
   const matchId = String(formData.get("match_id") ?? "");
-  const homeScore = Number(formData.get("home_score"));
-  const awayScore = Number(formData.get("away_score"));
+  const homeScore = optionalScore(formData.get("home_score"));
+  const awayScore = optionalScore(formData.get("away_score"));
 
   if (
     !matchId ||
-    !Number.isInteger(homeScore) ||
-    !Number.isInteger(awayScore) ||
-    homeScore < 0 ||
-    awayScore < 0
+    !homeScore.valid ||
+    !awayScore.valid ||
+    homeScore.value === null ||
+    awayScore.value === null
   ) {
     return { ok: false, message: "Informe placares válidos." };
   }
 
   if (process.env.NODE_ENV === "development") {
-    console.log("[admin] finalizing match:", matchId);
+    console.log("[finishMatch] called", {
+      matchId,
+      homeScore: homeScore.value,
+      awayScore: awayScore.value,
+      status: "finished"
+    });
   }
 
   const { data: updatedMatch, error: matchError } = await supabase
     .from("matches")
     .update({
-      home_score: homeScore,
-      away_score: awayScore,
+      home_score: homeScore.value,
+      away_score: awayScore.value,
       status: "finished"
     })
     .eq("id", matchId)
@@ -758,7 +861,12 @@ export async function finishMatch(
   }
 
   try {
-    await recalculateMatchPoints(supabase, updatedMatch as Match);
+    const scoreResult = await recalculateMatchPoints(supabase, updatedMatch as Match);
+    revalidateMatchPages();
+    return {
+      ok: true,
+      message: `Jogo finalizado e pontuacao recalculada para ${scoreResult.scoredCount} palpites.`
+    };
   } catch (error) {
     console.error("Falha ao recalcular pontos após finalizar jogo:", error);
     return {
@@ -766,9 +874,78 @@ export async function finishMatch(
       message: "Resultado salvo, mas não foi possível recalcular a pontuação."
     };
   }
+}
+
+export async function recalculateAllFinishedMatches(
+  _previousState: ActionState = defaultState,
+  _formData?: FormData
+): Promise<ActionState> {
+  await requireAdmin();
+  const supabase = createAdminClient();
+
+  const { data: matches, error: matchesError } = await supabase
+    .from("matches")
+    .select("id, home_score, away_score, status")
+    .eq("status", "finished")
+    .not("home_score", "is", null)
+    .not("away_score", "is", null);
+
+  if (matchesError) {
+    return { ok: false, message: matchesError.message };
+  }
+
+  let totalPredictionsScored = 0;
+  const errors: string[] = [];
+
+  for (const match of (matches ?? []) as Pick<
+    Match,
+    "id" | "home_score" | "away_score" | "status"
+  >[]) {
+    if (!isValidScore(match.home_score) || !isValidScore(match.away_score)) {
+      errors.push(`${match.id}: placar invalido`);
+      continue;
+    }
+
+    const scoreResult = await scorePredictionsForMatch(
+      supabase,
+      match.id,
+      match.home_score,
+      match.away_score
+    );
+
+    totalPredictionsScored += scoreResult.scoredCount;
+    errors.push(...scoreResult.errors);
+  }
+
+  if (errors.length > 0) {
+    return {
+      ok: false,
+      message: `Nao foi possivel recalcular todos os palpites: ${errors[0]}`
+    };
+  }
+
+  try {
+    await recalculateLeaderboardOrThrow(supabase);
+  } catch (error) {
+    console.error("Falha ao recalcular tabela geral:", error);
+    return {
+      ok: false,
+      message: "Palpites recalculados, mas nao foi possivel recalcular a tabela."
+    };
+  }
+
+  if (process.env.NODE_ENV === "development") {
+    console.log("[recalculateAllFinishedMatches]", {
+      matchesFound: matches?.length ?? 0,
+      totalPredictionsScored
+    });
+  }
 
   revalidateMatchPages();
-  return { ok: true, message: "Resultado salvo e pontuação recalculada." };
+  return {
+    ok: true,
+    message: `Pontuacao recalculada para ${matches?.length ?? 0} jogos finalizados e ${totalPredictionsScored} palpites.`
+  };
 }
 
 export async function uploadFamilyPhoto(

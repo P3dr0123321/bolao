@@ -7,27 +7,35 @@ import {
   SelectItem,
   SelectTrigger
 } from "@/components/ui/select";
-import { getTeamByName, TEAMS } from "@/lib/teams";
+import { getTeamByName, TEAMS, type Team } from "@/lib/teams";
 
 export function TeamSelect({
   id,
   name,
   value,
   onValueChange,
-  placeholder
+  placeholder,
+  disabled = false,
+  teams = TEAMS
 }: {
   id: string;
   name: string;
   value: string;
   onValueChange: (value: string) => void;
   placeholder: string;
+  disabled?: boolean;
+  teams?: readonly Team[];
 }) {
   const selectedTeam = getTeamByName(value);
 
   return (
     <>
       <input type="hidden" name={name} value={value} />
-      <Select value={value || undefined} onValueChange={onValueChange}>
+      <Select
+        value={value || undefined}
+        onValueChange={onValueChange}
+        disabled={disabled}
+      >
         <SelectTrigger
           id={id}
           className="h-11 w-full rounded-md bg-background"
@@ -52,7 +60,7 @@ export function TeamSelect({
           position="popper"
           className="max-h-72 bg-background text-foreground"
         >
-          {TEAMS.map((team) => (
+          {teams.map((team) => (
             <SelectItem key={team.slug} value={team.name}>
               <span className="flex items-center gap-2">
                 <Image

@@ -1,13 +1,21 @@
+import { getFinalPredictionSettings } from "@/app/actions/final-predictions";
 import { AdminFamilyPhotosManager } from "@/components/admin/admin-family-photos-manager";
+import { AdminFinalPredictionSettings } from "@/components/admin/admin-final-prediction-settings";
 import { AdminMatchForm } from "@/components/admin/admin-match-form";
 import { AdminMatchesManager } from "@/components/admin/admin-matches-manager";
 import { AdminParticipantForm } from "@/components/admin/admin-participant-form";
 import { AdminParticipantsManager } from "@/components/admin/admin-participants-manager";
+import { AdminPointsManager } from "@/components/admin/admin-points-manager";
 import { AdminResultsManager } from "@/components/admin/admin-results-manager";
 import { Header } from "@/components/header";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
-import type { FamilyPhoto, Match, Participant } from "@/lib/types";
+import type {
+  FamilyPhoto,
+  FinalPredictionSettings,
+  Match,
+  Participant
+} from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +23,12 @@ export default async function AdminPage() {
   const participant = await requireAdmin();
   const supabase = createClient();
 
-  const [participantsResult, matchesResult, photosResult] = await Promise.all([
+  const [
+    participantsResult,
+    matchesResult,
+    photosResult,
+    finalPredictionSettings
+  ] = await Promise.all([
     supabase
       .from("participants")
       .select(
@@ -29,7 +42,8 @@ export default async function AdminPage() {
     supabase
       .from("family_photos")
       .select("*")
-      .order("sort_order", { ascending: true })
+      .order("sort_order", { ascending: true }),
+    getFinalPredictionSettings()
   ]);
 
   return (
@@ -57,6 +71,15 @@ export default async function AdminPage() {
               participants={(participantsResult.data ?? []) as Participant[]}
             />
           )}
+          {!participantsResult.error ? (
+            <AdminPointsManager
+              participants={(participantsResult.data ?? []) as Participant[]}
+              className="pt-0"
+            />
+          ) : null}
+          <AdminFinalPredictionSettings
+            settings={finalPredictionSettings as FinalPredictionSettings}
+          />
           <AdminMatchForm />
           {matchesResult.error ? (
             <div className="rounded-lg border bg-card p-8 text-center text-destructive">
